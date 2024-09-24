@@ -90,26 +90,56 @@
         modules ? [],
         extraInputs ? {},
         ...
-      }: (home-manager.lib.homeManagerConfiguration {
-        inherit pkgs;
-        modules = builtins.map (m:
-          if isPath m
-          then
-            import m ({
-                modules = homeModules;
-                profiles = homeProfiles;
-              }
-              // extraInputs)
-          else if isFunction m
-          then
-            m ({
-                modules = homeModules;
-                profiles = homeProfiles;
-              }
-              // extraInputs)
-          else m)
-        modules;
-      });
+      }: let
+        hmModuleArgs =
+          {
+            modules = homeModules;
+            profiles = homeProfiles;
+          }
+          // extraInputs;
+      in
+        home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          modules = builtins.map (m:
+            if isPath m
+            then import m hmModuleArgs
+            else if isFunction m
+            then m hmModuleArgs
+            else m)
+          modules;
+        };
+
+      nixosSystem = {
+        system,
+        modules ? [],
+        extraInputs ? {},
+      }: let
+        nixosModuleArgs =
+          {
+            modules = nixosModules;
+            profiles = nixosProfiles;
+          }
+          // extraInputs;
+      in
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+
+          modules = builtins.map (m:
+            if isPath m
+            then import m nixosModuleArgs
+            else if isFunction m
+            then m nixosModuleArgs
+            else m)
+          modules;
+        };
+
+      isNixOS = builtins.pathExists "/etc/nixos";
+
+      hmSymlink = config: p: {
+        source =
+          config.lib.file.mkOutOfStoreSymlink
+          "${config.xdg.configHome}/home-manager/${toString p}";
+      };
     };
   };
 }
